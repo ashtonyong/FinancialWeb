@@ -1,205 +1,214 @@
 "use client";
 
-import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { Search, GripVertical, Pencil } from 'lucide-react';
-import SectionLabel from '@/components/ui/SectionLabel';
-import Badge from '@/components/ui/Badge';
+import { GripVertical, Search, Pencil } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import Sparkline from '@/components/ui/Sparkline';
-import Skeleton from '@/components/ui/Skeleton';
-import { DEFAULT_WATCHLIST } from '@/lib/constants';
-import { formatPrice, formatVolume } from '@/lib/formatters';
 
-function WatchlistRow({ symbol, quote }: { symbol: string, quote?: any }) {
-    const { data: chartData } = useSWR(symbol ? `/api/yahoo?symbol=${encodeURIComponent(symbol)}&interval=1d&range=5d` : null, {
-        refreshInterval: 60000,
-    });
+const DEFAULT_WATCHLIST = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'TSLA', 'META', 'JPM'];
 
-    let sparklineData: number[] = [];
-    if (chartData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close) {
-        sparklineData = chartData.chart.result[0].indicators.quote[0].close.filter((v: number | null) => v !== null);
-    }
-
-    if (!quote) {
-        return (
-            <div className="flex items-center gap-2 h-10 px-4 border-b border-[var(--border-subtle)]">
-                <Skeleton width="12px" height="12px" />
-                <div className="flex flex-col flex-1 gap-1">
-                    <Skeleton width="40px" height="12px" />
-                    <Skeleton width="60px" height="10px" />
-                </div>
-                <Skeleton width="40px" height="14px" />
-                <Skeleton width="30px" height="14px" />
-                <Skeleton width="40px" height="18px" />
-            </div>
-        );
-    }
-
-    const changePercent = quote.regularMarketChangePercent || 0;
-
-    return (
-        <div className="flex items-center gap-2 h-10 px-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors group">
-            <GripVertical className="w-3 h-3 text-[#4B5563] cursor-grab opacity-50 group-hover:opacity-100 shrink-0" strokeWidth={2} />
-
-            <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-[13px] font-bold text-[#F0F0F0] leading-tight truncate">{symbol}</span>
-                <span className="text-[11px] text-[#4B5563] leading-tight truncate">{quote.shortName || '--'}</span>
-            </div>
-
-            <div className="text-[13px] text-[#F0F0F0] text-right min-w-[60px] font-medium tracking-tight">
-                {formatPrice(quote.regularMarketPrice)}
-            </div>
-
-            <Badge
-                value={changePercent}
-                text={`${changePercent > 0 ? '+' : ''}${changePercent.toFixed(1)}%`}
-                className="w-[42px] justify-center"
-            />
-
-            <div className="shrink-0 ml-1">
-                <Sparkline data={sparklineData} width={40} height={18} />
-            </div>
-        </div>
-    );
-}
-
-function TopMoverRow({ mover, index }: { mover: any, index: number }) {
-    return (
-        <div className="flex items-center h-9 px-4 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors">
-            <span className="text-[11px] text-[#4B5563] min-w-[16px]">{index + 1}</span>
-            <span className="text-[13px] font-bold text-[#F0F0F0] flex-1">{mover.symbol}</span>
-            <Badge
-                value={mover.changesPercentage}
-                text={`${mover.changesPercentage > 0 ? '+' : ''}${mover.changesPercentage.toFixed(1)}%`}
-                className="w-[50px] justify-center mr-3"
-            />
-            <span className="text-[11px] text-[#4B5563] w-[30px] text-right">
-                {/* Placeholder for volume vs avg as FMP gainers doesn't directly provide multiplier, we show raw volume formatted */}
-                {formatVolume(mover.volume)}
-            </span>
-        </div>
-    );
-}
+const COMPANY_NAMES: Record<string, string> = {
+    AAPL: 'Apple Inc.', MSFT: 'Microsoft', NVDA: 'NVIDIA',
+    GOOGL: 'Alphabet', AMZN: 'Amazon', TSLA: 'Tesla',
+    META: 'Meta', JPM: 'JPMorgan',
+};
 
 export default function WatchlistPanel() {
-    const [symbols, setSymbols] = useState<string[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [moverTab, setMoverTab] = useState<'gainers' | 'losers'>('gainers');
+    const [symbols, setSymbols] = useState<string[]>(DEFAULT_WATCHLIST);
+    const [gainersActive, setGainersActive] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         const saved = localStorage.getItem('flux_watchlist');
-        if (saved) {
-            setSymbols(JSON.parse(saved));
-        } else {
-            setSymbols(DEFAULT_WATCHLIST);
-            localStorage.setItem('flux_watchlist', JSON.stringify(DEFAULT_WATCHLIST));
-        }
+        if (saved) setSymbols(JSON.parse(saved));
     }, []);
 
-    const { data: quotesData } = useSWR(symbols.length > 0 ? `/api/yahoo?symbols=${symbols.join(',')}` : null, {
-        refreshInterval: 15000,
+    const symbolsParam = symbols.join(',');
+
+    const { data: quotesData } = useSWR(
+        symbolsParam ? `/api/yahoo?symbols=${encodeURIComponent(symbolsParam)}` : null,
+        { refreshInterval: 15000 }
+    );
+
+    const { data: sparkData } = useSWR(
+        symbolsParam ? `/api/yahoo/sparklines?symbols=${encodeURIComponent(symbolsParam)}` : null,
+        { refreshInterval: 60000 }
+    );
+
+    const { data: gainersData } = useSWR('/api/fmp?endpoint=gainers', { refreshInterval: 60000 });
+    const { data: losersData } = useSWR('/api/fmp?endpoint=losers', { refreshInterval: 60000 });
+
+    const quotes: Record<string, any> = {};
+    (quotesData?.quoteResponse?.result ?? []).forEach((q: any) => {
+        quotes[q.symbol] = q;
     });
 
-    const { data: moversData } = useSWR(`/api/fmp?endpoint=${moverTab}`, {
-        refreshInterval: 60000,
-    });
+    const moversArray = gainersActive ? gainersData : losersData;
+    const movers = Array.isArray(moversArray) ? moversArray : [];
+    const topMovers = movers.slice(0, 5);
 
-    const quotesMap = new Map<string, any>();
-    if (quotesData?.quoteResponse?.result) {
-        quotesData.quoteResponse.result.forEach((q: any) => {
-            quotesMap.set(q.symbol, q);
-        });
-    }
-
-    const filteredSymbols = symbols.filter(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
-    const displayMovers = Array.isArray(moversData) ? moversData.slice(0, 5) : [];
+    const filteredSymbols = symbols.filter(s =>
+        s.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (COMPANY_NAMES[s] ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
-        <div className="w-[280px] shrink-0 h-full bg-[var(--bg-surface)] border-r border-[var(--border)] flex flex-col overflow-hidden">
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-            {/* WATCHLIST SECTION */}
-            <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="p-4 pb-2">
-                    <SectionLabel>WATCHLIST</SectionLabel>
-                    <div className="mt-2 relative flex items-center w-full h-8 bg-[var(--bg-elevated)] border border-[var(--border)] rounded px-2">
-                        <Search className="w-3.5 h-3.5 text-[#4B5563]" />
-                        <input
-                            type="text"
-                            placeholder="Search ticker..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-transparent border-none outline-none text-[13px] text-[var(--text-primary)] placeholder-[#4B5563] ml-2"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    {symbols.length === 0 ? (
-                        <div className="p-4">
-                            {[...Array(8)].map((_, i) => <WatchlistRow key={i} symbol="" />)}
-                        </div>
-                    ) : (
-                        filteredSymbols.map(sym => (
-                            <WatchlistRow key={sym} symbol={sym} quote={quotesMap.get(sym)} />
-                        ))
-                    )}
-
-                    <div className="flex items-center gap-2 p-4 text-[#4B5563] hover:text-[#F0F0F0] cursor-pointer transition-colors mt-2">
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-medium">Edit Watchlist</span>
-                    </div>
+            {/* ── WATCHLIST ── */}
+            <div style={{ padding: '16px 16px 0', flexShrink: 0 }}>
+                <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#4B5563', marginBottom: '8px' }}>
+                    WATCHLIST
+                </p>
+                {/* Search input */}
+                <div style={{ position: 'relative', marginBottom: '4px' }}>
+                    <Search size={12} color="#4B5563" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Search ticker..."
+                        style={{
+                            width: '100%', height: '32px', background: '#161616',
+                            border: '1px solid #1E1E1E', borderRadius: '4px',
+                            paddingLeft: '28px', paddingRight: '8px',
+                            fontSize: '12px', color: '#F0F0F0', outline: 'none',
+                        }}
+                    />
                 </div>
             </div>
 
-            <div className="h-[1px] bg-[var(--border)] w-full block shrink-0"></div>
+            {/* Watchlist rows */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }} className="hide-scrollbar">
+                {filteredSymbols.map(symbol => {
+                    const q = quotes[symbol];
+                    const price = q?.regularMarketPrice;
+                    const changePct = q?.regularMarketChangePercent;
+                    const isUp = (changePct ?? 0) >= 0;
+                    const sparks = sparkData?.[symbol] ?? [];
 
-            {/* TOP MOVERS SECTION */}
-            <div className="flex flex-col h-[260px] shrink-0">
-                <div className="pt-4 px-4 pb-0">
-                    <SectionLabel>TOP MOVERS</SectionLabel>
-                    <div className="flex gap-4 mt-3 border-b border-[var(--border)]">
-                        <button
-                            onClick={() => setMoverTab('gainers')}
-                            className={`pb-2 text-[12px] font-medium relative ${moverTab === 'gainers' ? 'text-[#F0F0F0]' : 'text-[#9CA3AF] hover:text-[#F0F0F0]'}`}
+                    return (
+                        <div
+                            key={symbol}
+                            className="group"
+                            style={{
+                                height: '40px', display: 'flex', alignItems: 'center',
+                                padding: '0 16px', gap: '6px',
+                                borderBottom: '1px solid #151515',
+                                cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                         >
-                            Gainers
-                            {moverTab === 'gainers' && <div className="absolute bottom-[-1px] left-0 right-0 h-[1px] bg-[var(--accent)]"></div>}
-                        </button>
-                        <button
-                            onClick={() => setMoverTab('losers')}
-                            className={`pb-2 text-[12px] font-medium relative ${moverTab === 'losers' ? 'text-[#F0F0F0]' : 'text-[#9CA3AF] hover:text-[#F0F0F0]'}`}
-                        >
-                            Losers
-                            {moverTab === 'losers' && <div className="absolute bottom-[-1px] left-0 right-0 h-[1px] bg-[var(--accent)]"></div>}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex flex-col flex-1 py-1">
-                    <div className="flex px-4 py-2 text-[10px] text-[#4B5563] uppercase tracking-wide">
-                        <span className="min-w-[16px]">#</span>
-                        <span className="flex-1">Ticker</span>
-                        <span className="w-[50px] text-center mr-3">Change</span>
-                        <span className="w-[30px] text-right">Vol</span>
-                    </div>
-
-                    {!moversData || !Array.isArray(moversData) ? (
-                        [...Array(5)].map((_, i) => (
-                            <div key={i} className="flex items-center h-9 px-4 border-b border-[var(--border-subtle)]">
-                                <Skeleton width="10px" height="10px" />
-                                <div className="flex-1 ml-2"><Skeleton width="40px" height="12px" /></div>
-                                <Skeleton width="40px" height="16px" className="mr-3" />
-                                <Skeleton width="30px" height="10px" />
+                            <div className="opacity-50 group-hover:opacity-100 shrink-0">
+                                <GripVertical size={12} color="#4B5563" style={{ cursor: 'grab' }} />
                             </div>
-                        ))
-                    ) : (
-                        displayMovers.map((mover: any, i: number) => (
-                            <TopMoverRow key={mover.symbol} mover={mover} index={i} />
-                        ))
-                    )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#F0F0F0' }}>{symbol}</div>
+                                <div style={{ fontSize: '11px', color: '#4B5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {COMPANY_NAMES[symbol] ?? symbol}
+                                </div>
+                            </div>
+                            <span style={{ fontSize: '13px', color: '#F0F0F0', flexShrink: 0, minWidth: '55px', textAlign: 'right', fontWeight: 500 }}>
+                                {price != null ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                            </span>
+                            <span style={{
+                                fontSize: '10px', padding: '2px 4px', borderRadius: '2px', flexShrink: 0,
+                                background: isUp ? 'rgba(0,212,170,0.12)' : 'rgba(255,77,77,0.12)',
+                                color: isUp ? '#00D4AA' : '#FF4D4D',
+                                width: '50px',
+                                textAlign: 'center',
+                                marginLeft: '4px',
+                                marginRight: '4px',
+                            }}>
+                                {changePct != null ? `${isUp ? '+' : ''}${changePct.toFixed(2)}%` : '—'}
+                            </span>
+                            <div className="shrink-0 flex items-center h-full">
+                                <Sparkline data={sparks} width={40} height={18} />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Edit Watchlist */}
+            <div style={{ padding: '8px 16px', borderBottom: '1px solid #1E1E1E', flexShrink: 0 }}>
+                <button style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer', color: '#4B5563', fontSize: '11px', padding: 0 }}>
+                    <Pencil size={11} />
+                    Edit Watchlist
+                </button>
+            </div>
+
+            {/* ── TOP MOVERS ── */}
+            <div style={{ flexShrink: 0, padding: '12px 16px 0' }}>
+                <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#4B5563', marginBottom: '8px' }}>
+                    TOP MOVERS
+                </p>
+                {/* Gainers / Losers tabs */}
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '4px' }}>
+                    {['Gainers', 'Losers'].map(tab => (
+                        <button
+                            key={tab}
+                            onClick={() => setGainersActive(tab === 'Gainers')}
+                            style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                fontSize: '12px', padding: '0 0 4px 0',
+                                color: (tab === 'Gainers') === gainersActive ? '#F0F0F0' : '#9CA3AF',
+                                borderBottom: (tab === 'Gainers') === gainersActive ? '1px solid #00D4AA' : '1px solid transparent',
+                            }}
+                        >
+                            {tab}
+                        </button>
+                    ))}
                 </div>
             </div>
 
+            {/* Mover rows */}
+            <div style={{ flexShrink: 0, paddingBottom: '8px' }}>
+                {/* Column headers */}
+                <div style={{ display: 'flex', padding: '0 16px', height: '28px', alignItems: 'center', borderBottom: '1px solid #151515' }}>
+                    <span style={{ fontSize: '10px', color: '#4B5563', width: '20px' }}>#</span>
+                    <span style={{ fontSize: '10px', color: '#4B5563', flex: 1 }}>Ticker</span>
+                    <span style={{ fontSize: '10px', color: '#4B5563', width: '60px', textAlign: 'right' }}>Change</span>
+                    <span style={{ fontSize: '10px', color: '#4B5563', width: '36px', textAlign: 'right' }}>Vol</span>
+                </div>
+
+                {topMovers.map((mover: any, i: number) => {
+                    const changePct = mover.changesPercentage ?? mover.change ?? 0;
+                    const isGainer = gainersActive;
+                    return (
+                        <div
+                            key={mover.symbol ?? i}
+                            style={{
+                                height: '36px', display: 'flex', alignItems: 'center',
+                                padding: '0 16px', gap: '4px',
+                                borderBottom: '1px solid #151515',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                            <span style={{ fontSize: '11px', color: '#4B5563', width: '20px', flexShrink: 0 }}>{i + 1}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#F0F0F0', flex: 1 }}>{mover.symbol}</span>
+                            <span style={{
+                                fontSize: '10px', padding: '2px 4px', borderRadius: '2px',
+                                background: isGainer ? 'rgba(0,212,170,0.12)' : 'rgba(255,77,77,0.12)',
+                                color: isGainer ? '#00D4AA' : '#FF4D4D',
+                                width: '60px', textAlign: 'center',
+                            }}>
+                                {isGainer ? '+' : ''}{typeof changePct === 'number' ? changePct.toFixed(2) : changePct}%
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#4B5563', width: '36px', textAlign: 'right' }}>
+                                {mover.volume ? `${(mover.volume / 1000000).toFixed(1)}M` : '—'}
+                            </span>
+                        </div>
+                    );
+                })}
+
+                {topMovers.length === 0 && (
+                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#4B5563' }}>
+                        Loading movers...
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

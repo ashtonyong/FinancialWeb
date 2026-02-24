@@ -1,82 +1,78 @@
 "use client";
 
 import useSWR from 'swr';
-import Skeleton from '@/components/ui/Skeleton';
+import SectionLabel from '@/components/ui/SectionLabel';
+
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export default function MarketBreadth() {
-    const { data: breadthData } = useSWR('/api/fmp?endpoint=breadth', {
-        refreshInterval: 60000,
-    });
+    const { data: breadthData } = useSWR('/api/fmp?endpoint=breadth', fetcher, { refreshInterval: 60000 });
 
-    const { data: vixData } = useSWR('/api/fred?series_id=VIXCLS', {
-        refreshInterval: 360000, // 6 min
-    });
+    // FMP returns array — take first element
+    const breadth = Array.isArray(breadthData) ? breadthData[0] : breadthData;
 
-    const advancing = breadthData?.[0]?.advancing;
-    const declining = breadthData?.[0]?.declining;
-    const unchanged = breadthData?.[0]?.unchanged;
-    const newHighs = breadthData?.[0]?.new52WeekHigh;
-    const newLows = breadthData?.[0]?.new52WeekLow;
+    const advancing = breadth?.advancing ?? breadth?.advancingStocks ?? null;
+    const declining = breadth?.declining ?? breadth?.decliningStocks ?? null;
+    const unchanged = breadth?.unchanged ?? null;
+    const newHighs = breadth?.new52WeekHigh ?? breadth?.newHigh ?? null;
+    const newLows = breadth?.new52WeekLow ?? breadth?.newLow ?? null;
+    const aboveMA50 = breadth?.stocksAboveMA50 ?? breadth?.aboveMA50 ?? null;
 
-    const vixValue = vixData?.observations?.[0]?.value ? parseFloat(vixData.observations[0].value) : null;
+    // Get VIX from the shared index strip quotes (pass as prop or use SWR key)
+    const { data: vixData } = useSWR('/api/yahoo?symbols=^VIX', fetcher, { refreshInterval: 15000 });
+    const vixQuote = vixData?.quoteResponse?.result?.[0];
+    const vix = vixQuote?.regularMarketPrice;
+    const vixChange = vixQuote?.regularMarketChangePercent;
+
+    const stats = [
+        { label: 'ADVANCING', value: advancing, color: advancing ? '#00D4AA' : '#F0F0F0' },
+        { label: 'DECLINING', value: declining, color: declining ? '#FF4D4D' : '#F0F0F0' },
+        { label: 'UNCHANGED', value: unchanged, color: '#F0F0F0' },
+        { label: 'NEW 52W HI', value: newHighs, color: '#F0F0F0' },
+        { label: 'NEW 52W LO', value: newLows, color: '#F0F0F0' },
+        { label: 'ABOVE MA50', value: aboveMA50 != null ? `${aboveMA50.toFixed(1)}%` : null, color: '#F0F0F0' },
+    ];
 
     return (
-        <div className="flex-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-[6px] flex flex-col overflow-hidden">
-
-            {/* HEADER */}
-            <div className="h-9 px-3 border-b border-[var(--border)] flex items-center justify-between shrink-0">
-                <span className="text-[12px] font-semibold text-[#F0F0F0] uppercase tracking-wide">Market Breadth</span>
-                <div className="px-1.5 py-0.5 rounded-[2px] bg-[var(--bg-elevated)] border border-[var(--border)] text-[10px] text-[#9CA3AF]">
-                    NYSE + NASDAQ
-                </div>
+        <div className="flex flex-col h-full bg-[var(--bg-surface)]">
+            <div className="pt-4 px-4 pb-0 shrink-0">
+                <SectionLabel>MARKET BREADTH</SectionLabel>
             </div>
 
-            {/* STATS GRID */}
-            <div className="grid grid-cols-3 gap-2 p-3">
-                {/* ROW 1 */}
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">Advancing</span>
-                    {advancing ? <span className="text-[20px] font-bold text-[var(--up)] leading-none">{advancing.toLocaleString()}</span> : <Skeleton width="60px" height="20px" />}
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">Declining</span>
-                    {declining ? <span className="text-[20px] font-bold text-[var(--down)] leading-none">{declining.toLocaleString()}</span> : <Skeleton width="60px" height="20px" />}
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">Unchanged</span>
-                    {unchanged !== undefined ? <span className="text-[20px] font-bold text-[#F0F0F0] leading-none">{unchanged.toLocaleString()}</span> : <Skeleton width="60px" height="20px" />}
-                </div>
-
-                {/* ROW 2 */}
-                <div className="flex flex-col mt-2">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">New Highs</span>
-                    {newHighs !== undefined ? <span className="text-[20px] font-bold text-[#F0F0F0] leading-none">{newHighs.toLocaleString()}</span> : <Skeleton width="40px" height="20px" />}
-                </div>
-                <div className="flex flex-col mt-2">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">New Lows</span>
-                    {newLows !== undefined ? <span className="text-[20px] font-bold text-[#F0F0F0] leading-none">{newLows.toLocaleString()}</span> : <Skeleton width="40px" height="20px" />}
-                </div>
-                <div className="flex flex-col mt-2">
-                    <span className="text-[10px] text-[#4B5563] uppercase tracking-[0.08em] mb-0.5">Above 50 MA</span>
-                    {/* Missing from FMP free tier demo often, fallback to N/A */}
-                    <span className="text-[20px] font-bold text-[var(--up)] leading-none">N/A</span>
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', padding: '12px' }}>
+                {stats.map(({ label, value, color }) => (
+                    <div key={label}>
+                        <div style={{ fontSize: '18px', fontWeight: 700, color: value != null ? color : '#4B5563' }}>
+                            {value != null ? value.toLocaleString?.() ?? value : '—'}
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#4B5563', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {label}
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            <div className="h-[1px] bg-[var(--border)] w-full mx-3 my-[2px] shrink-0" style={{ width: 'calc(100% - 24px)' }}></div>
+            {/* Divider */}
+            <div style={{ height: '1px', background: '#1E1E1E', margin: '0 12px' }} />
 
-            {/* BOTTOM ROW (PUT/CALL, VIX) */}
-            <div className="flex items-center justify-between p-3 mt-auto mb-1">
-                <div className="flex items-baseline gap-2">
-                    <span className="text-[11px] text-[#4B5563] uppercase tracking-[0.08em]">Put/Call Ratio</span>
-                    <span className="text-[14px] font-semibold text-[#F0F0F0]">--</span>
+            {/* Bottom row: Put/Call + VIX */}
+            <div style={{ display: 'flex', padding: '12px', gap: '16px' }}>
+                <div>
+                    <span style={{ fontSize: '11px', color: '#4B5563' }}>PUT/CALL RATIO  </span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#F0F0F0' }}>—</span>
                 </div>
-                <div className="flex items-baseline gap-2 mr-2">
-                    <span className="text-[11px] text-[#4B5563] uppercase tracking-[0.08em]">VIX Index</span>
-                    {vixValue ? <span className="text-[14px] font-semibold text-[var(--down)]">{vixValue.toFixed(2)}</span> : <Skeleton width="40px" height="16px" />}
+                <div style={{ marginLeft: 'auto' }}>
+                    <span style={{ fontSize: '11px', color: '#4B5563' }}>VIX INDEX  </span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#F0F0F0' }}>
+                        {vix != null ? vix.toFixed(2) : '—'}
+                    </span>
+                    {vixChange != null && (
+                        <span style={{ fontSize: '11px', color: vixChange >= 0 ? '#FF4D4D' : '#00D4AA', marginLeft: '4px' }}>
+                            {vixChange >= 0 ? '+' : ''}{vixChange.toFixed(2)}%
+                        </span>
+                    )}
                 </div>
             </div>
-
         </div>
     );
 }

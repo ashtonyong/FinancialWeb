@@ -1,3 +1,5 @@
+"use client";
+
 import IndexStrip from '@/components/overview/IndexStrip';
 import WatchlistPanel from '@/components/overview/WatchlistPanel';
 import MainChart from '@/components/overview/MainChart';
@@ -8,32 +10,93 @@ import EconomicCalendar from '@/components/overview/EconomicCalendar';
 
 export default function OverviewPage() {
     return (
-        <div className="flex flex-col h-full w-full">
-            <IndexStrip />
+        <div style={{
+            position: 'fixed',
+            top: '56px',       /* header height — adjust to match your actual header */
+            left: '240px',     /* sidebar width — our sidebar is 240px */
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            background: '#0A0A0A',
+        }}>
 
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left Panel */}
-                <WatchlistPanel />
+            {/* INDEX STRIP — 48px horizontal pill row */}
+            <div style={{ flexShrink: 0, height: '48px', overflowX: 'auto' }} className="hide-scrollbar">
+                <IndexStrip />
+            </div>
 
-                {/* Center Panel (Chart + Bottom Cards) */}
-                <div className="flex flex-col flex-1 min-w-0 bg-[var(--bg-base)] border-r border-[var(--border)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    <div className="h-[60%] min-h-[420px] flex flex-col shrink-0 px-4 pt-4">
-                        <div className="w-full h-full border border-[var(--border)] rounded-[6px] overflow-hidden">
-                            <MainChart />
+            {/* MAIN BODY — 3-column layout */}
+            <div style={{
+                flex: 1,
+                display: 'flex',
+                overflow: 'hidden',
+                minHeight: 0,
+            }}>
+
+                {/* LEFT PANEL — Watchlist + Top Movers */}
+                <div style={{
+                    width: '280px',
+                    flexShrink: 0,
+                    background: '#111111',
+                    borderRight: '1px solid #1E1E1E',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}>
+                    <WatchlistPanel />
+                </div>
+
+                {/* CENTER COLUMN — Chart + Bottom Cards */}
+                <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    minWidth: 0,
+                }}>
+                    {/* Chart area — takes all remaining vertical space */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                        <MainChart />
+                    </div>
+
+                    {/* Bottom cards — fixed height */}
+                    <div style={{
+                        height: '280px',
+                        flexShrink: 0,
+                        display: 'flex',
+                        borderTop: '1px solid #1E1E1E',
+                    }}>
+                        <div style={{ flex: 1, borderRight: '1px solid #1E1E1E', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <SectorPerformance />
+                        </div>
+                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <MarketBreadth />
                         </div>
                     </div>
+                </div>
 
-                    <div className="flex-1 flex gap-4 p-4 min-h-[260px]">
-                        <SectorPerformance />
-                        <MarketBreadth />
+                {/* RIGHT PANEL — News + Calendar */}
+                <div style={{
+                    width: '280px',
+                    flexShrink: 0,
+                    background: '#111111',
+                    borderLeft: '1px solid #1E1E1E',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                }}>
+                    {/* News feed — takes remaining space */}
+                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }} className="hide-scrollbar">
+                        <NewsFeed />
+                    </div>
+                    {/* Economic calendar — fixed bottom */}
+                    <div style={{ height: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                        <EconomicCalendar />
                     </div>
                 </div>
 
-                {/* Right Panel */}
-                <div className="w-[300px] shrink-0 bg-[var(--bg-surface)] flex flex-col h-full ml-[-1px]">
-                    <NewsFeed />
-                    <EconomicCalendar />
-                </div>
             </div>
         </div>
     );

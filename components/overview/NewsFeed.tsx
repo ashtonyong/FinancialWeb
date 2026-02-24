@@ -1,69 +1,50 @@
 "use client";
 
 import useSWR from 'swr';
-import SectionLabel from '@/components/ui/SectionLabel';
+import { useState } from 'react';
 import Skeleton from '@/components/ui/Skeleton';
-import { formatTimeAgo } from '@/lib/formatters';
 
-function getSentimentColor(headline: string) {
+function getSentiment(headline: string): 'up' | 'down' | 'neutral' {
     const lower = headline.toLowerCase();
-    const positive = ['beat', 'surges', 'record', 'gains', 'rises', 'up', 'higher', 'jumps', 'accelerates'];
-    const negative = ['miss', 'drops', 'falls', 'cuts', 'declines', 'down', 'lower', 'plunges', 'slides'];
-    if (positive.some(w => lower.includes(w))) return 'bg-[var(--up)]';
-    if (negative.some(w => lower.includes(w))) return 'bg-[var(--down)]';
-    return 'bg-[#4B5563]';
+    const positive = ['beat', 'surge', 'soar', 'record', 'gain', 'rise', 'rally', 'jump', 'boost', 'up', 'grow', 'profit', 'strong', 'exceed'];
+    const negative = ['miss', 'drop', 'fall', 'cut', 'decline', 'loss', 'down', 'weak', 'below', 'concern', 'fear', 'risk', 'slide', 'plunge', 'halt'];
+    if (positive.some(w => lower.includes(w))) return 'up';
+    if (negative.some(w => lower.includes(w))) return 'down';
+    return 'neutral';
 }
 
-function NewsCard({ article }: { article: any }) {
-    const color = getSentimentColor(article.headline);
-    const tickers = article.related ? article.related.split(',').slice(0, 3) : [];
-
-    return (
-        <a href={article.url} target="_blank" rel="noreferrer" className="block p-3 border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer group">
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                    <div className="px-1.5 py-0.5 rounded-[2px] bg-[var(--bg-elevated)] border border-[var(--border)] text-[10px] text-[#9CA3AF] uppercase tracking-wide">
-                        {article.source}
-                    </div>
-                    <div className={`w-1.5 h-1.5 rounded-full ${color}`}></div>
-                </div>
-                <div className="text-[11px] text-[#4B5563]">{formatTimeAgo(article.datetime)}</div>
-            </div>
-
-            <div className="text-[13px] text-[#F0F0F0] leading-snug line-clamp-2 mb-2 transition-colors">
-                {article.headline}
-            </div>
-
-            {tickers.length > 0 && (
-                <div className="flex gap-1.5">
-                    {tickers.map((t: string) => (
-                        <span key={t} className="px-1.5 py-0.5 rounded-[2px] bg-[var(--bg-elevated)] text-[10px] text-[#9CA3AF]">
-                            {t}
-                        </span>
-                    ))}
-                </div>
-            )}
-        </a>
-    );
+function timeAgo(unixTimestamp: number): string {
+    const seconds = Math.floor(Date.now() / 1000) - unixTimestamp;
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 export default function NewsFeed() {
+    const [limit, setLimit] = useState(10);
     const { data: newsItems } = useSWR('/api/finnhub?endpoint=news&category=general', {
-        refreshInterval: 120000, // 2 mins
+        refreshInterval: 120000,
     });
 
     return (
-        <div className="flex flex-col flex-1 border-b border-[var(--border)] overflow-hidden">
-            <div className="p-4 pt-4 pb-2 shrink-0">
-                <SectionLabel>NEWS FEED</SectionLabel>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Section label */}
+            <div style={{ padding: '12px 16px 8px', flexShrink: 0 }}>
+                <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#4B5563' }}>
+                    NEWS FEED
+                </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div style={{ flex: 1, overflowY: 'auto' }} className="hide-scrollbar">
                 {!newsItems || newsItems.error || !Array.isArray(newsItems) ? (
-                    <div className="p-3">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className="mb-4 pb-4 border-b border-[var(--border-subtle)]">
-                                <div className="flex justify-between mb-2"><Skeleton width="60px" height="16px" /><Skeleton width="40px" height="12px" /></div>
+                    <div style={{ padding: '12px 16px' }}>
+                        {[...Array(5)].map((_, i) => (
+                            <div key={i} style={{ marginBottom: '16px', borderBottom: '1px solid #151515', paddingBottom: '16px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <Skeleton width="60px" height="16px" />
+                                    <Skeleton width="40px" height="12px" />
+                                </div>
                                 <Skeleton width="100%" height="16px" className="mb-1" />
                                 <Skeleton width="80%" height="16px" />
                             </div>
@@ -71,12 +52,82 @@ export default function NewsFeed() {
                     </div>
                 ) : (
                     <>
-                        {newsItems.slice(0, 10).map((article: any) => (
-                            <NewsCard key={article.id} article={article} />
-                        ))}
-                        <div className="p-3 text-center text-[11px] text-[var(--accent)] hover:text-[#F0F0F0] cursor-pointer transition-colors font-medium">
-                            Load more news
-                        </div>
+                        {newsItems.slice(0, limit).map((item: any) => {
+                            const sentiment = getSentiment(item.headline ?? '');
+                            const sentimentColor = sentiment === 'up' ? '#00D4AA' : sentiment === 'down' ? '#FF4D4D' : '#4B5563';
+                            const relatedTickers = item.related
+                                ? item.related.split(',').map((t: string) => t.trim()).filter(Boolean).slice(0, 3)
+                                : [];
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => window.open(item.url, '_blank')}
+                                    style={{
+                                        borderBottom: '1px solid #151515',
+                                        padding: '10px 16px',
+                                        cursor: 'pointer',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = '#161616')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                >
+                                    {/* Row 1: source + sentiment dot + time */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                        <span style={{
+                                            fontSize: '10px', color: '#9CA3AF', padding: '1px 5px', borderRadius: '2px',
+                                            background: '#161616', border: '1px solid #1E1E1E', flexShrink: 0,
+                                        }}>
+                                            {item.source?.toUpperCase() ?? 'NEWS'}
+                                        </span>
+                                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: sentimentColor, flexShrink: 0 }} />
+                                        <span style={{ fontSize: '11px', color: '#4B5563', marginLeft: 'auto', flexShrink: 0 }}>
+                                            {timeAgo(item.datetime)}
+                                        </span>
+                                    </div>
+
+                                    {/* Row 2: Headline */}
+                                    <p style={{
+                                        fontSize: '13px', color: '#F0F0F0', lineHeight: 1.4, marginBottom: '6px',
+                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                    }}>
+                                        {item.headline}
+                                    </p>
+
+                                    {/* Row 3: Ticker pills */}
+                                    {relatedTickers.length > 0 && (
+                                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                            {relatedTickers.map((ticker: string) => (
+                                                <span
+                                                    key={ticker}
+                                                    style={{
+                                                        fontSize: '10px', color: '#9CA3AF', padding: '1px 5px', borderRadius: '2px',
+                                                        background: '#161616', border: '1px solid #1E1E1E',
+                                                    }}
+                                                >
+                                                    {ticker}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {/* Load more */}
+                        {limit < newsItems.length && (
+                            <button
+                                onClick={() => setLimit(l => l + 10)}
+                                style={{
+                                    width: '100%', padding: '12px', textAlign: 'center',
+                                    fontSize: '11px', color: '#4B5563', background: 'none', border: 'none', cursor: 'pointer',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#9CA3AF')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#4B5563')}
+                            >
+                                Load more news
+                            </button>
+                        )}
                     </>
                 )}
             </div>

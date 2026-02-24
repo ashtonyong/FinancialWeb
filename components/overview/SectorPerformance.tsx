@@ -1,102 +1,96 @@
 "use client";
 
 import useSWR from 'swr';
-import { SECTOR_ETFS } from '@/lib/constants';
-import Skeleton from '@/components/ui/Skeleton';
+import SectionLabel from '@/components/ui/SectionLabel';
 
-const sectorSymbols = SECTOR_ETFS.map(s => s.symbol).join(',');
+const SECTOR_ETFS = [
+    { symbol: 'XLK', name: 'Technology' },
+    { symbol: 'XLC', name: 'Comm Services' },
+    { symbol: 'XLY', name: 'Cons Cyclical' },
+    { symbol: 'XLF', name: 'Financial' },
+    { symbol: 'XLI', name: 'Industrial' },
+    { symbol: 'XLV', name: 'Healthcare' },
+    { symbol: 'XLRE', name: 'Real Estate' },
+    { symbol: 'XLP', name: 'Cons Defensive' },
+    { symbol: 'XLB', name: 'Basic Materials' },
+    { symbol: 'XLU', name: 'Utilities' },
+    { symbol: 'XLE', name: 'Energy' },
+];
+
+const etfSymbols = SECTOR_ETFS.map(s => s.symbol).join(',');
+
+const MAX_PCT = 5;
+const MAX_BAR_WIDTH = 60; // px
 
 export default function SectorPerformance() {
-    const { data } = useSWR(`/api/yahoo?symbols=${encodeURIComponent(sectorSymbols)}`, {
-        refreshInterval: 60000,
+    const { data } = useSWR(
+        `/api/yahoo?symbols=${etfSymbols}`,
+        (url) => fetch(url).then(r => r.json()),
+        { refreshInterval: 60000 }
+    );
+
+    // Map response to sector change percents
+    const quotes: Record<string, number> = {};
+    (data?.quoteResponse?.result ?? []).forEach((q: any) => {
+        quotes[q.symbol] = q.regularMarketChangePercent ?? 0;
     });
 
-    const quotesMap = new Map<string, any>();
-    if (data?.quoteResponse?.result) {
-        data.quoteResponse.result.forEach((q: any) => {
-            quotesMap.set(q.symbol, q);
-        });
-    }
-
-    // Map to desired output and sort by change descending
-    const performanceData = SECTOR_ETFS.map(sector => {
-        const quote = quotesMap.get(sector.symbol);
-        return {
-            name: sector.name,
-            changePercent: quote ? quote.regularMarketChangePercent : null
-        };
-    });
-
-    // Sort descending
-    performanceData.sort((a, b) => {
-        if (a.changePercent === null) return 1;
-        if (b.changePercent === null) return -1;
-        return b.changePercent - a.changePercent;
-    });
+    // Build sorted sector list
+    const sectors = SECTOR_ETFS
+        .map(s => ({ name: s.name, changePct: quotes[s.symbol] ?? 0 }))
+        .sort((a, b) => b.changePct - a.changePct);
 
     return (
-        <div className="flex-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-[6px] flex flex-col overflow-hidden">
-
-            {/* HEADER */}
-            <div className="h-9 px-3 border-b border-[var(--border)] flex items-center justify-between shrink-0">
-                <span className="text-[12px] font-semibold text-[#F0F0F0] uppercase tracking-wide">Sector Performance</span>
-                <div className="px-1.5 py-0.5 rounded-[2px] bg-[var(--bg-elevated)] border border-[var(--border)] text-[10px] text-[#9CA3AF]">
-                    Today
-                </div>
+        <div className="flex flex-col h-full bg-[var(--bg-surface)]">
+            <div className="pt-4 px-4 pb-0 shrink-0">
+                <SectionLabel>SECTOR PERFORMANCE</SectionLabel>
             </div>
 
-            {/* ROWS */}
-            <div className="flex-1 py-1 flex flex-col justify-around">
-                {performanceData.map((item, i) => {
-                    if (item.changePercent === null) {
-                        return (
-                            <div key={i} className="flex items-center h-6 px-3">
-                                <span className="text-[11px] text-[#9CA3AF] w-[110px] truncate">{item.name}</span>
-                                <div className="flex-1 mx-2 h-[6px] relative">
-                                    <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-[var(--border)]"></div>
-                                </div>
-                                <div className="w-[50px] text-right"><Skeleton width="30px" height="12px" className="float-right" /></div>
-                            </div>
-                        );
-                    }
-
-                    const val = item.changePercent;
-                    const isUp = val >= 0;
-
-                    // Max width assumption: ~7% corresponds to 100% of half-bar width
-                    // We have ~100px width total, 50px each side.
-                    // Let's cap at 5% for full width visual scaling: 5% = 50px
-                    const pixelWidth = Math.min(Math.abs(val) * 10, 50);
+            <div className="flex-1 overflow-y-auto mt-2 pb-2 hide-scrollbar">
+                {sectors.map(({ name, changePct }) => {
+                    const isUp = changePct >= 0;
+                    const barWidth = Math.min(Math.abs(changePct) / MAX_PCT * MAX_BAR_WIDTH, MAX_BAR_WIDTH);
 
                     return (
-                        <div key={item.name} className="flex items-center h-6 px-3">
-                            <span className="text-[11px] text-[#9CA3AF] w-[110px] truncate">{item.name}</span>
+                        <div
+                            key={name}
+                            style={{ height: '24px', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '8px' }}
+                        >
+                            {/* Sector name */}
+                            <span style={{ fontSize: '11px', color: '#9CA3AF', width: '110px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {name}
+                            </span>
 
-                            <div className="flex-1 mx-2 h-[6px] relative flex items-center">
-                                <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-[var(--border)] z-10"></div>
-
-                                {/* Bar */}
-                                {isUp ? (
-                                    <div
-                                        className="absolute left-1/2 h-[6px] bg-[var(--up)] rounded-[2px]"
-                                        style={{ width: `${pixelWidth}px` }}
-                                    ></div>
-                                ) : (
-                                    <div
-                                        className="absolute right-1/2 h-[6px] bg-[var(--down)] rounded-[2px]"
-                                        style={{ width: `${pixelWidth}px` }}
-                                    ></div>
-                                )}
+                            {/* Bar container */}
+                            <div style={{ flex: 1, height: '6px', position: 'relative', background: '#1E1E1E', borderRadius: '3px' }}>
+                                {/* Center zero line */}
+                                <div style={{
+                                    position: 'absolute', left: '50%', top: 0, bottom: 0,
+                                    width: '1px', background: '#4B5563', transform: 'translateX(-50%)',
+                                }} />
+                                {/* Colored bar */}
+                                <div style={{
+                                    position: 'absolute',
+                                    height: '100%',
+                                    width: `${barWidth / 2}px`, // half because bar goes from center
+                                    background: isUp ? '#00D4AA' : '#FF4D4D',
+                                    borderRadius: '3px',
+                                    left: isUp ? '50%' : undefined,
+                                    right: isUp ? undefined : '50%',
+                                }} />
                             </div>
 
-                            <span className={`text-[11px] w-[50px] text-right font-medium tracking-tight ${isUp ? 'text-[var(--up)]' : 'text-[var(--down)]'}`}>
-                                {isUp ? '+' : ''}{val.toFixed(1)}%
+                            {/* Percentage value */}
+                            <span style={{
+                                fontSize: '11px', width: '48px', textAlign: 'right', flexShrink: 0,
+                                color: isUp ? '#00D4AA' : '#FF4D4D',
+                            }}>
+                                {isUp ? '+' : ''}{changePct.toFixed(2)}%
                             </span>
                         </div>
                     );
                 })}
             </div>
-
         </div>
     );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { createChart, ColorType, CrosshairMode, IChartApi, ISeriesApi, CandlestickSeries, HistogramSeries } from 'lightweight-charts';
-import { ChevronDown, CandlestickChart, LineChart, AreaChart, Plus } from 'lucide-react';
+import { ChevronDown, CandlestickChart, LineChart, AreaChart, Plus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { INDEX_SYMBOLS } from '@/lib/constants';
 import { formatPrice, formatChange } from '@/lib/formatters';
 
@@ -163,41 +163,65 @@ export default function MainChart() {
     }, [chartData]);
 
     const quote = quoteData?.quoteResponse?.result?.[0];
-    const price = quote?.regularMarketPrice;
-    const change = quote?.regularMarketChange;
-    const changePercent = quote?.regularMarketChangePercent;
-    const isUp = changePercent >= 0;
+    const currentPrice = quote?.regularMarketPrice;
+    const priceChange = quote?.regularMarketChange;
+    const priceChangePct = quote?.regularMarketChangePercent;
+    const isUp = (priceChange ?? 0) >= 0;
 
     return (
         <div className="flex-1 flex flex-col bg-[var(--bg-base)] h-full w-full overflow-hidden">
 
             {/* CHART HEADER */}
-            <div className="h-11 bg-[var(--bg-surface)] border-b border-[var(--border)] px-4 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 cursor-pointer group">
-                        <span className="text-[13px] font-bold text-[#F0F0F0]">{INDEX_SYMBOLS.find(s => s.symbol === symbol)?.label || symbol}</span>
-                        <ChevronDown className="w-4 h-4 text-[#4B5563] group-hover:text-[#F0F0F0] transition-colors" />
-                    </div>
+            <div style={{
+                height: '44px', background: '#111111', borderBottom: '1px solid #1E1E1E',
+                padding: '0 16px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
+            }}>
+                {/* Index selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#F0F0F0' }}>
+                        {INDEX_SYMBOLS.find(s => s.symbol === symbol)?.label || symbol}
+                    </span>
+                    <ChevronDown size={14} color="#9CA3AF" />
+                </div>
 
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-[20px] font-bold text-[#F0F0F0] leading-none">{formatPrice(price, symbol)}</span>
-                        <span className={`text-[13px] font-medium leading-none ${isUp ? 'text-[var(--up)]' : 'text-[var(--down)]'}`}>
-                            {formatChange(change, changePercent)}
+                {/* Live price */}
+                {currentPrice != null ? (
+                    <>
+                        <span style={{ fontSize: '20px', fontWeight: 700, color: '#F0F0F0' }}>
+                            {currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
-                    </div>
-                </div>
+                        <span style={{ fontSize: '13px', color: isUp ? '#00D4AA' : '#FF4D4D', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                            {isUp ? '+' : ''}{priceChange?.toFixed(2)} ({isUp ? '+' : ''}{priceChangePct?.toFixed(2)}%)
+                        </span>
+                    </>
+                ) : (
+                    <div style={{ width: '160px', height: '20px', background: '#161616', borderRadius: '4px', animation: 'shimmer 1.5s infinite' }} />
+                )}
 
-                <div className="flex items-center gap-1">
-                    <button onClick={() => setChartType('candle')} className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${chartType === 'candle' ? 'bg-[var(--accent-dim)] text-[var(--accent)]' : 'text-[#4B5563] hover:text-[#F0F0F0] hover:bg-[var(--bg-elevated)]'}`}>
-                        <CandlestickChart className="w-4 h-4" />
+                {/* Spacer */}
+                <div style={{ flex: 1 }} />
+
+                {/* Chart type icons */}
+                {[
+                    { icon: <CandlestickChart size={16} />, type: 'candle' },
+                    { icon: <LineChart size={16} />, type: 'line' },
+                    { icon: <AreaChart size={16} />, type: 'area' },
+                ].map(({ icon, type }) => (
+                    <button
+                        key={type}
+                        onClick={() => setChartType(type as any)}
+                        style={{
+                            width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: chartType === type ? 'rgba(0,212,170,0.08)' : 'transparent',
+                            border: '1px solid', borderColor: chartType === type ? '#00D4AA' : 'transparent',
+                            borderRadius: '4px', cursor: 'pointer',
+                            color: chartType === type ? '#00D4AA' : '#9CA3AF',
+                        }}
+                    >
+                        {icon}
                     </button>
-                    <button onClick={() => setChartType('line')} className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${chartType === 'line' ? 'bg-[var(--accent-dim)] text-[var(--accent)]' : 'text-[#4B5563] hover:text-[#F0F0F0] hover:bg-[var(--bg-elevated)]'}`}>
-                        <LineChart className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => setChartType('area')} className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${chartType === 'area' ? 'bg-[var(--accent-dim)] text-[var(--accent)]' : 'text-[#4B5563] hover:text-[#F0F0F0] hover:bg-[var(--bg-elevated)]'}`}>
-                        <AreaChart className="w-4 h-4" />
-                    </button>
-                </div>
+                ))}
             </div>
 
             {/* TIMEFRAME TABS */}
@@ -224,7 +248,7 @@ export default function MainChart() {
                             <span className="text-[#9CA3AF] ml-3 mr-1">H:</span><span className="text-[#F0F0F0] font-mono">{hoverData.high?.toFixed(2)}</span>
                             <span className="text-[#9CA3AF] ml-3 mr-1">L:</span><span className="text-[#F0F0F0] font-mono">{hoverData.low?.toFixed(2)}</span>
                             <span className="text-[#9CA3AF] ml-3 mr-1">C:</span><span className="text-[#F0F0F0] font-mono">{hoverData.close?.toFixed(2)}</span>
-                            <span className="text-[#9CA3AF] ml-3 mr-1">V:</span><span className="text-[#F0F0F0] font-mono">{hoverData.volume ? formatPrice(hoverData.volume) : '--'}</span>
+                            <span className="text-[#9CA3AF] ml-3 mr-1">V:</span><span className="text-[#F0F0F0] font-mono">{hoverData.volume ? formatPrice(hoverData.volume, symbol) : '--'}</span>
                         </div>
                     )}
                 </div>

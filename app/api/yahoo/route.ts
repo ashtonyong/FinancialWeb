@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/json',
+    'Accept-Language': 'en-US,en;q=0.9',
+};
+
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const symbols = searchParams.get('symbols');
@@ -9,27 +15,32 @@ export async function GET(request: NextRequest) {
 
     try {
         if (symbols) {
-            // Batch quotes
-            const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent,regularMarketVolume,regularMarketPreviousClose,shortName,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow`;
-            const res = await fetch(url, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
+            const fields = [
+                'regularMarketPrice',
+                'regularMarketChange',
+                'regularMarketChangePercent',
+                'regularMarketVolume',
+                'regularMarketPreviousClose',
+                'regularMarketOpen',
+                'regularMarketDayHigh',
+                'regularMarketDayLow',
+                'shortName',
+            ].join(',');
+            const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=${fields}`;
+            const res = await fetch(url, { headers: HEADERS, cache: 'no-store' });
             const data = await res.json();
             return NextResponse.json(data);
         }
 
         if (symbol) {
-            // Historical chart data
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`;
-            const res = await fetch(url, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+            const res = await fetch(url, { headers: HEADERS, cache: 'no-store' });
             const data = await res.json();
             return NextResponse.json(data);
         }
 
         return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Fetch failed' }, { status: 500 });
     }
 }

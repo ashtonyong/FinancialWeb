@@ -2,33 +2,23 @@
 
 import { Home, Bell } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getMarketStatus } from '@/lib/marketStatus';
+import { getMarketStatus, getEasternTimeString, getEasternTimezone } from '@/lib/marketStatus';
 
 export default function Header() {
-    const [time, setTime] = useState<Date | null>(null);
+    const [timeStr, setTimeStr] = useState('');
+    const [tzLabel, setTzLabel] = useState('ET');
     const [marketStatus, setMarketStatus] = useState<ReturnType<typeof getMarketStatus>>('closed');
 
     useEffect(() => {
-        // Initial sets
-        setTime(new Date());
-        setMarketStatus(getMarketStatus());
-
-        // Update time every second
-        const timer = setInterval(() => {
-            setTime(new Date());
+        const tick = () => {
+            setTimeStr(getEasternTimeString());
+            setTzLabel(getEasternTimezone());
             setMarketStatus(getMarketStatus());
-        }, 1000);
-
-        return () => clearInterval(timer);
+        };
+        tick();
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
     }, []);
-
-    const formattedTime = time ? time.toLocaleTimeString('en-US', {
-        timeZone: 'America/New_York',
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    }) : '--:--:--';
 
     const renderMarketStatus = () => {
         switch (marketStatus) {
@@ -60,8 +50,8 @@ export default function Header() {
                 {renderMarketStatus()}
 
                 <div className="flex flex-col items-end justify-center leading-none">
-                    <span className="text-[12px] text-[#4B5563] font-mono">{formattedTime}</span>
-                    <span className="text-[10px] text-[#4B5563] mt-0.5">EST</span>
+                    <span style={{ fontSize: '12px', color: '#4B5563', fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span>
+                    <span style={{ fontSize: '10px', color: '#4B5563', marginTop: '2px' }}>{tzLabel}</span>
                 </div>
 
                 <button className="text-[#9CA3AF] hover:text-[#F0F0F0] transition-colors relative">

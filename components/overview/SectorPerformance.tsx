@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 import SectionLabel from '@/components/ui/SectionLabel';
 
-const SECTOR_ETFS = [
+const SECTOR_MAP = [
     { symbol: 'XLK', name: 'Technology' },
     { symbol: 'XLC', name: 'Comm Services' },
     { symbol: 'XLY', name: 'Cons Cyclical' },
@@ -17,28 +17,37 @@ const SECTOR_ETFS = [
     { symbol: 'XLE', name: 'Energy' },
 ];
 
-const etfSymbols = SECTOR_ETFS.map(s => s.symbol).join(',');
-
-const MAX_PCT = 5;
-const MAX_BAR_WIDTH = 60; // px
+const etfSymbols = SECTOR_MAP.map(s => s.symbol).join(',');
 
 export default function SectorPerformance() {
-    const { data } = useSWR(
+    const { data, error } = useSWR(
         `/api/yahoo?symbols=${etfSymbols}`,
-        (url) => fetch(url).then(r => r.json()),
-        { refreshInterval: 60000 }
+        (url: string) => fetch(url).then(r => r.json()),
+        { refreshInterval: 60000, revalidateOnFocus: false }
     );
 
-    // Map response to sector change percents
-    const quotes: Record<string, number> = {};
+    const quotesMap: Record<string, number> = {};
     (data?.quoteResponse?.result ?? []).forEach((q: any) => {
-        quotes[q.symbol] = q.regularMarketChangePercent ?? 0;
+        quotesMap[q.symbol] = q.regularMarketChangePercent ?? 0;
     });
 
-    // Build sorted sector list
-    const sectors = SECTOR_ETFS
-        .map(s => ({ name: s.name, changePct: quotes[s.symbol] ?? 0 }))
-        .sort((a, b) => b.changePct - a.changePct);
+    const sectors = SECTOR_MAP
+        .map(s => ({ name: s.name, pct: quotesMap[s.symbol] ?? 0 }))
+        .sort((a, b) => b.pct - a.pct);
+
+    // Loading skeleton
+    if (!data && !error) {
+        return (
+            <div className="flex flex-col h-full bg-[var(--bg-surface)]">
+                <div className="pt-4 px-4 pb-0 shrink-0">
+                    <SectionLabel>SECTOR PERFORMANCE</SectionLabel>
+                </div>
+                <div className="flex-1 flex items-center justify-center">
+                    <span style={{ fontSize: '12px', color: '#4B5563' }}>Loading sectors...</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-[var(--bg-surface)]">
@@ -47,45 +56,40 @@ export default function SectorPerformance() {
             </div>
 
             <div className="flex-1 overflow-y-auto mt-2 pb-2 hide-scrollbar">
-                {sectors.map(({ name, changePct }) => {
-                    const isUp = changePct >= 0;
-                    const barWidth = Math.min(Math.abs(changePct) / MAX_PCT * MAX_BAR_WIDTH, MAX_BAR_WIDTH);
+                {sectors.map(({ name, pct }) => {
+                    const isPositive = pct >= 0;
+                    const absVal = Math.abs(pct);
+                    const barWidthPct = Math.min(absVal / 5 * 50, 50);
 
                     return (
-                        <div
-                            key={name}
-                            style={{ height: '24px', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '8px' }}
-                        >
-                            {/* Sector name */}
-                            <span style={{ fontSize: '11px', color: '#9CA3AF', width: '110px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div key={name} style={{ height: '24px', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '8px' }}>
+                            {/* Name */}
+                            <span style={{ fontSize: '11px', color: '#9CA3AF', width: '108px', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {name}
                             </span>
 
-                            {/* Bar container */}
-                            <div style={{ flex: 1, height: '6px', position: 'relative', background: '#1E1E1E', borderRadius: '3px' }}>
-                                {/* Center zero line */}
-                                <div style={{
-                                    position: 'absolute', left: '50%', top: 0, bottom: 0,
-                                    width: '1px', background: '#4B5563', transform: 'translateX(-50%)',
-                                }} />
-                                {/* Colored bar */}
+                            {/* Bar */}
+                            <div style={{ flex: 1, height: '6px', position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <div style={{ position: 'absolute', inset: 0, background: '#1E1E1E', borderRadius: '3px' }} />
+                                <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: '#4B5563' }} />
                                 <div style={{
                                     position: 'absolute',
-                                    height: '100%',
-                                    width: `${barWidth / 2}px`, // half because bar goes from center
-                                    background: isUp ? '#00D4AA' : '#FF4D4D',
+                                    top: 0, bottom: 0,
+                                    width: `${barWidthPct}%`,
+                                    background: isPositive ? '#00D4AA' : '#FF4D4D',
                                     borderRadius: '3px',
-                                    left: isUp ? '50%' : undefined,
-                                    right: isUp ? undefined : '50%',
+                                    left: isPositive ? '50%' : undefined,
+                                    right: isPositive ? undefined : '50%',
                                 }} />
                             </div>
 
-                            {/* Percentage value */}
+                            {/* Percentage */}
                             <span style={{
-                                fontSize: '11px', width: '48px', textAlign: 'right', flexShrink: 0,
-                                color: isUp ? '#00D4AA' : '#FF4D4D',
+                                fontSize: '11px', width: '52px', textAlign: 'right', flexShrink: 0,
+                                color: isPositive ? '#00D4AA' : '#FF4D4D',
+                                fontVariantNumeric: 'tabular-nums',
                             }}>
-                                {isUp ? '+' : ''}{changePct.toFixed(2)}%
+                                {isPositive ? '+' : ''}{pct.toFixed(2)}%
                             </span>
                         </div>
                     );

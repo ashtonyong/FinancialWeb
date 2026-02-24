@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import IndexStrip from '@/components/overview/IndexStrip';
 import WatchlistPanel from '@/components/overview/WatchlistPanel';
 import MainChart from '@/components/overview/MainChart';
@@ -9,11 +10,13 @@ import NewsFeed from '@/components/overview/NewsFeed';
 import EconomicCalendar from '@/components/overview/EconomicCalendar';
 
 export default function OverviewPage() {
+    const [selectedSymbol, setSelectedSymbol] = useState('^GSPC');
+
     return (
         <div style={{
             position: 'fixed',
-            top: '56px',       /* header height — adjust to match your actual header */
-            left: '240px',     /* sidebar width — our sidebar is 240px */
+            top: '56px',
+            left: '240px',
             right: 0,
             bottom: 0,
             display: 'flex',
@@ -22,7 +25,7 @@ export default function OverviewPage() {
             background: '#0A0A0A',
         }}>
 
-            {/* INDEX STRIP — 48px horizontal pill row */}
+            {/* INDEX STRIP */}
             <div style={{ flexShrink: 0, height: '48px', overflowX: 'auto' }} className="hide-scrollbar">
                 <IndexStrip />
             </div>
@@ -45,7 +48,10 @@ export default function OverviewPage() {
                     display: 'flex',
                     flexDirection: 'column',
                 }}>
-                    <WatchlistPanel />
+                    <WatchlistPanel
+                        onSelectSymbol={setSelectedSymbol}
+                        selectedSymbol={selectedSymbol}
+                    />
                 </div>
 
                 {/* CENTER COLUMN — Chart + Bottom Cards */}
@@ -56,12 +62,13 @@ export default function OverviewPage() {
                     overflow: 'hidden',
                     minWidth: 0,
                 }}>
-                    {/* Chart area — takes all remaining vertical space */}
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-                        <MainChart />
+                        <MainChart
+                            symbol={selectedSymbol}
+                            onSymbolChange={setSelectedSymbol}
+                        />
                     </div>
 
-                    {/* Bottom cards — fixed height */}
                     <div style={{
                         height: '280px',
                         flexShrink: 0,
@@ -87,11 +94,9 @@ export default function OverviewPage() {
                     flexDirection: 'column',
                     overflow: 'hidden',
                 }}>
-                    {/* News feed — takes remaining space */}
                     <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }} className="hide-scrollbar">
                         <NewsFeed />
                     </div>
-                    {/* Economic calendar — fixed bottom */}
                     <div style={{ height: '280px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                         <EconomicCalendar />
                     </div>

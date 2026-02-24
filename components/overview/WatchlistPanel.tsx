@@ -11,7 +11,7 @@ import { DEFAULT_WATCHLIST } from '@/lib/constants';
 import { formatPrice, formatVolume } from '@/lib/formatters';
 
 function WatchlistRow({ symbol, quote }: { symbol: string, quote?: any }) {
-    const { data: chartData } = useSWR(`/api/yahoo?symbol=${encodeURIComponent(symbol)}&interval=1d&range=5d`, {
+    const { data: chartData } = useSWR(symbol ? `/api/yahoo?symbol=${encodeURIComponent(symbol)}&interval=1d&range=5d` : null, {
         refreshInterval: 60000,
     });
 
@@ -112,7 +112,7 @@ export default function WatchlistPanel() {
     }
 
     const filteredSymbols = symbols.filter(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
-    const displayMovers = moversData?.slice(0, 5) || [];
+    const displayMovers = Array.isArray(moversData) ? moversData.slice(0, 5) : [];
 
     return (
         <div className="w-[280px] shrink-0 h-full bg-[var(--bg-surface)] border-r border-[var(--border)] flex flex-col overflow-hidden">
@@ -183,7 +183,7 @@ export default function WatchlistPanel() {
                         <span className="w-[30px] text-right">Vol</span>
                     </div>
 
-                    {!moversData ? (
+                    {!moversData || !Array.isArray(moversData) ? (
                         [...Array(5)].map((_, i) => (
                             <div key={i} className="flex items-center h-9 px-4 border-b border-[var(--border-subtle)]">
                                 <Skeleton width="10px" height="10px" />
